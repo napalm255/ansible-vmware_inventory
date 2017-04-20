@@ -25,4 +25,3 @@ Ansible VMWare Inventory
 Features
 --------
 
-TODO
