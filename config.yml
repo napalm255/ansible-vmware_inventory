@@ -1,1 +1,16 @@
 ---
+# vcenter configuration
+hostname: vcenter.example.com
+username: user
+password: pass
+validate_certs: false
+cluster: Cluster Name
+
+# enabling facts decreases performance
+gather_vm_facts: false
+
+# properties to group by
+properties:
+  - config.guestId
+  - config.uuid
+  - runtime.powerState
