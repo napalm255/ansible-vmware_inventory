@@ -9,7 +9,7 @@ yum install -y \
   sshpass libselinux-python \
   python-setuptools python-devel \
   gcc libffi-devel openssl-devel \
-  man bind-utils mlocate
+  man bind-utils mlocate jq
 
 # Clean up yum
 yum clean -y all
