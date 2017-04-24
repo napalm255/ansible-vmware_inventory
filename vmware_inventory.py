@@ -17,7 +17,7 @@ __title__ = 'VMWare Inventory'
 __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
 __version__ = '0.1.0'
-__config__ = 'config.yml'
+__config__ = 'dev.yml'
 
 
 def main():
@@ -41,51 +41,54 @@ def main():
     content = connect_to_api(module)
     logging.debug(content)
     # pylint: disable = no-member
-    cluster = find_cluster_by_name(content, module.params['cluster'])
-    logging.debug(cluster)
-
     inv = dict()
     inv.setdefault('_meta', dict(hostvars=dict()))
-    inv.setdefault('esxi', list())
-    # pylint: disable = too-many-nested-blocks
-    for host in cluster.host:
-        logging.debug('esxi host: %s', host.name)
-        inv['esxi'].append(host.name)
-        for vm_obj in host.vm:
-            vm_name = vm_obj.config.name.lower()
-            vm_ip = vm_obj.guest.ipAddress
-            logging.debug('name: %s, ip: %s', vm_name, vm_ip)
+    for cluster in module.params.get('clusters', list()):
+        cluster_obj = find_cluster_by_name(content, cluster)
+        logging.debug(cluster_obj)
 
-            inv['_meta']['hostvars'].setdefault(vm_name, dict())
-            if module.params['gather_vm_facts']:
-                inv['_meta']['hostvars'][vm_name] = gather_vm_facts(content, vm_obj)
+        inv.setdefault('esxi', list())
+        # pylint: disable = too-many-nested-blocks
+        for host in cluster_obj.host:
+            logging.debug('esxi host: %s', host.name)
+            inv['esxi'].append(host.name)
+            for vm_obj in host.vm:
+                vm_name = vm_obj.config.name.lower()
+                vm_ip = vm_obj.guest.ipAddress
+                logging.debug('name: %s, ip: %s', vm_name, vm_ip)
 
-            for prop in module.params['properties']:
-                parts = prop.split('.')
-                vm_prop = getattr(vm_obj, parts[0])
-                parts.pop(0)
-                for part in parts:
-                    vm_prop = getattr(vm_prop, part)
-                inv.setdefault(vm_prop, list())
-                inv[vm_prop].append(vm_name)
+                inv['_meta']['hostvars'].setdefault(vm_name, dict())
+                if module.params.get('gather_vm_facts', False):
+                    inv['_meta']['hostvars'][vm_name] = gather_vm_facts(content, vm_obj)
 
-            cfm = content.customFieldsManager
-            # Resolve custom values
-            for value_obj in vm_obj.summary.customValue:
-                key = value_obj.key
-                if cfm is not None and cfm.field:
-                    for field in cfm.field:
-                        if field.key == value_obj.key:
-                            key = field.name
-                            # Exit the loop immediately, we found it
-                            break
-                group_name = '%s_%s' % (key, value_obj.value)
-                inv.setdefault(group_name, list())
-                inv[group_name].append(vm_name)
+                for prop in module.params.get('properties', list()):
+                    parts = prop.split('.')
+                    vm_prop = getattr(vm_obj, parts[0])
+                    parts.pop(0)
+                    for part in parts:
+                        vm_prop = getattr(vm_prop, part)
+                    inv.setdefault(vm_prop, list())
+                    inv[vm_prop].append(vm_name)
+
+                if module.params.get('custom_values', True):
+                    cfm = content.customFieldsManager
+                    # Resolve custom values
+                    for value_obj in vm_obj.summary.customValue:
+                        key = value_obj.key
+                        if cfm is not None and cfm.field:
+                            for field in cfm.field:
+                                if field.key == value_obj.key:
+                                    key = field.name
+                                    # Exit the loop immediately, we found it
+                                    break
+                        group_name = '%s_%s' % (key, value_obj.value)
+                        logging.debug('custom values: %s', group_name)
+                        inv.setdefault(group_name, list())
+                        inv[group_name].append(vm_name)
 
     if '--list' in argv:
         logging.debug('Display list')
-        print(json.dumps(inv))
+        print(json.dumps(inv, indent=4))
     elif '--host' in argv:
         logging.debug('Display host')
         print(json.dumps({}))
