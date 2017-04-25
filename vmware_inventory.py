@@ -41,7 +41,7 @@ class VMWareInventory(object):
 
         # load configuration
         self.config_prefix = 'vmware_'
-        self.config_lists = ['clusters', 'properties']
+        self.config_lists = ['clusters', 'properties', 'custom_values_filters']
         self._load_config()
         logging.debug('module: %s', self.module)
 
@@ -67,6 +67,7 @@ class VMWareInventory(object):
                          'validate_certs': True,
                          'gather_facts': False,
                          'custom_values': True,
+                         'custom_values_filters': None,
                          'properties': list()}
         self.module.params.update(sane_defaults)
 
@@ -140,6 +141,7 @@ class VMWareInventory(object):
 
     def _get_vm_customvalues(self, vm_obj):
         """Get vm custom values."""
+        filters = self.module.params['custom_values_filters']
         cfm = self.content.customFieldsManager
         # Resolve custom values
         for value_obj in vm_obj.summary.customValue:
@@ -150,6 +152,8 @@ class VMWareInventory(object):
                         key = field.name
                         # Exit the loop immediately, we found it
                         break
+            if filters and key not in filters:
+                continue
             group_name = '%s_%s' % (key, value_obj.value)
             self.inv.setdefault(group_name, list())
             self.inv[group_name].append(vm_obj.config.name.lower())
