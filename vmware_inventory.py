@@ -82,15 +82,13 @@ class VMWareInventory(object):
                 continue
             key = key.lower().replace(self.config_prefix, '')
             if key in self.config_lists:
-                value = list(value.split(','))
+                value = value.split(',')
             self.module.params.update({key: value})
             logging.debug('env: %s = %s', key, value)
 
-        if isinstance(self.module.params.get('clusters'), str):
-            self.module.params['clusters'] = list(self.module.params['clusters'])
-
-        if isinstance(self.module.params.get('properties'), str):
-            self.module.params['properties'] = list(self.module.params['properties'])
+        for param in self.config_lists:
+            if isinstance(self.module.params.get(param), str):
+                self.module.params[param] = [self.module.params[param]]
 
         self._validate_config()
 
