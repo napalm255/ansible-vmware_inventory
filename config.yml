@@ -4,12 +4,16 @@ hostname: vcenter.example.com
 username: user
 password: pass
 validate_certs: false
+
 clusters:
   - Cluster Name
 
 # enabling facts decreases performance
 gather_vm_facts: false
+
 custom_values: true
+custom_values_filters:
+  - Environment
 
 # properties to group by
 properties:
