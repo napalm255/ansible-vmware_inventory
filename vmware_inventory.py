@@ -20,6 +20,10 @@ __email__ = 'napalm255@gmail.com'
 __version__ = '0.1.0'
 __config__ = 'config.yml'
 
+# for development purposes
+if os.path.isfile('dev.yml'):
+    __config__ = 'dev.yml'
+
 
 # pylint: disable=too-few-public-methods
 class VMWareInventory(object):
@@ -29,12 +33,15 @@ class VMWareInventory(object):
         """Init."""
         # initialize module parameters
         self.module = lambda: None
+        setattr(self.module, 'params', dict())
 
         # initialize inventory
         self.inv = dict()
         self.inv.setdefault('_meta', dict(hostvars=dict()))
 
         # load configuration
+        self.config_prefix = 'vmware_'
+        self.config_lists = ['clusters', 'properties']
         self._load_config()
         logging.debug('module: %s', self.module)
 
@@ -51,16 +58,50 @@ class VMWareInventory(object):
         """Exit."""
 
     def _load_config(self):
+        """Load configuration from yaml or environment variables."""
+        # define and load sane defaults
+        sane_defaults = {'hostname': None,
+                         'username': None,
+                         'password': None,
+                         'clusters': None,
+                         'validate_certs': True,
+                         'gather_facts': False,
+                         'custom_values': True,
+                         'properties': list()}
+        self.module.params.update(sane_defaults)
+
         if os.path.isfile(__config__):
             logging.debug('loading configuration: %s', __config__)
             with open(__config__, 'r') as yaml_file:
-                setattr(self.module, 'params', yaml.load(yaml_file))
+                self.module.params.update(yaml.load(yaml_file))
+
+        # loop through environment variables starting with prefix
+        for key, value in os.environ.iteritems():
+            if self.config_prefix not in key.lower():
+                continue
+            key = key.lower().replace(self.config_prefix, '')
+            if key in self.config_lists:
+                value = list(value.split(','))
+            self.module.params.update({key: value})
+            logging.debug('env: %s = %s', key, value)
 
         if isinstance(self.module.params.get('clusters'), str):
             self.module.params['clusters'] = list(self.module.params['clusters'])
 
         if isinstance(self.module.params.get('properties'), str):
             self.module.params['properties'] = list(self.module.params['properties'])
+
+        self._validate_config()
+
+    def _validate_config(self):
+        """Validate configuration."""
+        try:
+            required_params = ['hostname', 'username', 'password', 'clusters']
+            for param in required_params:
+                assert self.module.params[param], '"%s" is not defined' % param
+        except AssertionError as ex:
+            logging.error(ex)
+            exit()
 
     def _get_cluster(self, cluster):
         return vmware.find_cluster_by_name(self.content, cluster)
