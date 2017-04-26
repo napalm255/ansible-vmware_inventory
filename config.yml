@@ -1,22 +1,72 @@
 ---
-# vcenter configuration
+# ansible vmware inventory configuration
+#
+# 'config.yml' and environment variables can be used as configuration.
+# They can be used separately or together. environment variables will always
+# take precedence.
+#
+# hostname: str
+#   * required: true
+#   * default: None
+#   * desc: hostname/ip of vcenter
+#   * env: VMWARE_HOSTNAME=vcenter.example.com
+# username: str
+#   * required: true
+#   * default: None
+#   * desc: username for vcenter
+#   * env: VMWARE_USERNAME=username
+# password: str
+#   * required: true
+#   * default: None
+#   * desc: password for vcenter
+#   * env: VMWARE_PASSWORD=password
+# validate_certs: bool
+#   * required: false
+#   * default: true
+#   * desc: enables/disables ssl certificate verification
+#   * env: VMWARE_VALIDATE_CERTS=false
+# clusters: list
+#   * required: true
+#   * default: None
+#   * desc: cluster(s) to query
+#   * env: VMWARE_CLUSTERS="Cluster1,Cluster2,Cluster3"
+# gather_vm_facts: bool
+#   * required: false
+#   * default: false
+#   * desc: gathers various vm facts for hostvars
+#   * warning: decreases performance
+#   * env: VMWARE_GATHER_VM_FACTS=true
+# groupby_custom_values: bool
+#   * required: false
+#   * default: true
+#   * desc: creates groups in the form of key_value from the custom values
+#   * env: VMWARE_GROUPBY_CUSTOM_VALUES=false
+# custom_values_filters: list
+#   * required: false
+#   * default: None
+#   * desc: only group based on a keyword filter
+#   * env: VMWARE_CUSTOM_VALUES_FILTERS="Environment,Function"
+# properties: list({name: str, group: bool})
+#   * required: false
+#   * default: None
+#   * desc: properties to query and optionally group by
+#   * env: VMWARE_PROPERTIES='[{"name":"config.guestId", "group":true}]'
+#   * example:
+#     - name: config.guestId
+#       group: true
+#
+
+#
+# sample
+#
 hostname: vcenter.example.com
 username: user
 password: pass
-validate_certs: false
-
 clusters:
   - Cluster Name
-
-# enabling facts decreases performance
-gather_vm_facts: false
-
-custom_values: true
-custom_values_filters:
-  - Environment
-
-# properties to group by
 properties:
-  - config.guestId
-  - config.uuid
-  - runtime.powerState
+  - name: config.guestId
+    group: true
+  - name: config.uuid
+    group: true
+  - name: runtime.powerState
