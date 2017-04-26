@@ -9,6 +9,7 @@ from __future__ import print_function
 import logging
 import os
 from sys import argv
+import ast
 import json
 import yaml
 from ansible.module_utils import vmware
@@ -43,6 +44,7 @@ class VMWareInventory(object):
         # load configuration
         self.config_prefix = 'vmware_'
         self.config_lists = ['clusters', 'properties', 'custom_values_filters']
+        self.config_required = ['hostname', 'username', 'password', 'clusters']
         self._load_config()
         logging.debug('module: %s', self.module)
 
@@ -66,10 +68,10 @@ class VMWareInventory(object):
                          'password': None,
                          'clusters': None,
                          'validate_certs': True,
-                         'gather_facts': False,
-                         'custom_values': True,
+                         'gather_vm_facts': False,
+                         'groupby_custom_values': True,
                          'custom_values_filters': None,
-                         'properties': list()}
+                         'properties': None}
         self.module.params.update(sane_defaults)
 
         if os.path.isfile(__config__):
@@ -83,9 +85,13 @@ class VMWareInventory(object):
                 continue
             key = key.lower().replace(self.config_prefix, '')
             if key in self.config_lists:
-                value = value.split(',')
+                if key == 'properties':
+                    value = json.loads(value)
+                else:
+                    value = value.split(',')
+                logging.warning(value)
             self.module.params.update({key: value})
-            logging.debug('env: %s = %s', key, value)
+            logging.debug('environment variable: %s = %s', key, value)
 
         for param in self.config_lists:
             if isinstance(self.module.params.get(param), str):
@@ -96,14 +102,14 @@ class VMWareInventory(object):
     def _validate_config(self):
         """Validate configuration."""
         try:
-            required_params = ['hostname', 'username', 'password', 'clusters']
-            for param in required_params:
+            for param in self.config_required:
                 assert self.module.params[param], '"%s" is not defined' % param
         except AssertionError as ex:
             logging.error(ex)
             exit()
 
     def _get_cluster(self, cluster):
+        """Find and return cluster by name."""
         return vmware.find_cluster_by_name(self.content, cluster)
 
     def _get_vms(self, host):
@@ -112,35 +118,39 @@ class VMWareInventory(object):
         for vm_obj in host.vm:
             vm_name = vm_obj.config.name.lower()
             vm_ip = vm_obj.guest.ipAddress
-            logging.debug('name: %s, ip: %s', vm_name, vm_ip)
+            logging.debug('vm name: %s, ip: %s', vm_name, vm_ip)
 
             self.inv['_meta']['hostvars'].setdefault(vm_name, dict())
             if self.module.params.get('gather_vm_facts', False):
                 facts = vmware.gather_vm_facts(self.content, vm_obj)
                 self.inv['_meta']['hostvars'][vm_name] = facts
-                logging.debug('facts: %s', json.dumps(facts, indent=4))
+                logging.debug('vm facts: %s', json.dumps(facts, indent=4))
 
             if self.module.params.get('properties'):
                 self._get_vm_properties(vm_obj)
 
-            if self.module.params.get('custom_values'):
+            if self.module.params.get('groupby_custom_values'):
                 self._get_vm_customvalues(vm_obj)
 
     def _get_vm_properties(self, vm_obj):
         """Get vm properties."""
+        vm_name = vm_obj.config.name.lower()
         for prop in self.module.params.get('properties', list()):
-            parts = prop.split('.')
+            if isinstance(prop, str):
+                prop = {'name': prop}
+            parts = prop['name'].split('.')
             vm_prop = getattr(vm_obj, parts[0])
-            parts.pop(0)
-            for part in parts:
+            for part in parts[1:]:
                 vm_prop = getattr(vm_prop, part)
-            self.inv.setdefault(vm_prop, list())
-            self.inv[vm_prop].append(vm_obj.config.name.lower())
-            logging.debug('property: %s', vm_prop)
+            if prop.get('group'):
+                self.inv.setdefault(vm_prop, list())
+                self.inv[vm_prop].append(vm_obj.config.name.lower())
+            self.inv['_meta']['hostvars'][vm_name].update({parts[-1]: vm_prop})
+            logging.debug('vm property: %s', {parts[-1]: vm_prop})
 
     def _get_vm_customvalues(self, vm_obj):
         """Get vm custom values."""
-        filters = self.module.params['custom_values_filters']
+        filters = self.module.params.get('custom_values_filters')
         cfm = self.content.customFieldsManager
         # Resolve custom values
         for value_obj in vm_obj.summary.customValue:
@@ -156,12 +166,10 @@ class VMWareInventory(object):
             group_name = '%s_%s' % (key, value_obj.value)
             self.inv.setdefault(group_name, list())
             self.inv[group_name].append(vm_obj.config.name.lower())
-            logging.debug('custom value: %s', group_name)
+            logging.debug('vm custom value: %s', group_name)
 
     def get_inventory(self):
         """Get inventory."""
-        logging.debug('getting inventory')
-
         # loop through clusters
         for cluster in self.module.params.get('clusters', list):
             cluster_obj = self._get_cluster(cluster)
@@ -191,12 +199,13 @@ def main():
 
     with VMWareInventory() as vminv:
         if '--list' in argv:
-            logging.debug('Display list')
+            logging.debug('display list')
             vminv.get_inventory()
             print(json.dumps(vminv.inv))
             # print(json.dumps(inv, indent=4))
         elif '--host' in argv:
-            logging.debug('Display host')
+            logging.debug('display host')
+            logging.error('not implemented.')
             # print(json.dumps({}))
 
 
