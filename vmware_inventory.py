@@ -12,6 +12,7 @@ from sys import argv
 import json
 import yaml
 from ansible.module_utils import vmware
+from six import iteritems
 # connect_to_api, gather_vm_facts, find_cluster_by_name
 
 __title__ = 'Ansible VMWare Inventory'
@@ -77,7 +78,7 @@ class VMWareInventory(object):
                 self.module.params.update(yaml.load(yaml_file))
 
         # loop through environment variables starting with prefix
-        for key, value in os.environ.iteritems():
+        for key, value in iteritems(os.environ):
             if self.config_prefix not in key.lower():
                 continue
             key = key.lower().replace(self.config_prefix, '')
