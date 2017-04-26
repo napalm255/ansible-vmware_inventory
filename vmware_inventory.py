@@ -46,11 +46,11 @@ class VMWareInventory(object):
         self.config_lists = ['clusters', 'properties', 'custom_values_filters']
         self.config_required = ['hostname', 'username', 'password', 'clusters']
         self._load_config()
-        logging.debug('module: %s', self.module)
+        logging.debug('module: %s', self.module.params)
 
         # connect to vcenter
         self.content = vmware.connect_to_api(self.module)
-        logging.debug('content: %s', self.content)
+        logging.debug('content: %s', self.content.about)
 
     def __enter__(self):
         """Enter."""
