@@ -9,7 +9,6 @@ from __future__ import print_function
 import logging
 import os
 from sys import argv
-import ast
 import json
 import yaml
 from ansible.module_utils import vmware
@@ -89,7 +88,6 @@ class VMWareInventory(object):
                     value = json.loads(value)
                 else:
                     value = value.split(',')
-                logging.warning(value)
             self.module.params.update({key: value})
             logging.debug('environment variable: %s = %s', key, value)
 
