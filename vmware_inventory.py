@@ -14,7 +14,7 @@ import yaml
 from ansible.module_utils import vmware
 # connect_to_api, gather_vm_facts, find_cluster_by_name
 
-__title__ = 'VMWare Inventory'
+__title__ = 'Ansible VMWare Inventory'
 __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
 __version__ = '0.1.0'
