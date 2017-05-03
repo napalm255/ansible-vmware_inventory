@@ -6,9 +6,10 @@ Dynamic inventory for ansible.
 """
 
 from __future__ import print_function
+import signal
 import logging
 import os
-from sys import argv
+import sys
 import json
 import yaml
 from ansible.module_utils import vmware
@@ -56,6 +57,14 @@ class VMWareInventory(object):
     # pylint: disable=redefined-builtin
     def __exit__(self, type, value, traceback):
         """Exit."""
+
+    def signal_handler(self, signum, frame):
+        """Signal handler to catch Ctrl-C."""
+        print()
+        logging.error('signum: %s, frame: %s', signum, frame)
+        logging.error('ctrl-c pressed. exiting.')
+        logging.info('dumping output...\n%s', json.dumps(self.inv, indent=4))
+        sys.exit(255)
 
     def _str_to_bool(self, value):
         """Convert string to boolean."""
@@ -111,7 +120,7 @@ class VMWareInventory(object):
                 assert self.module.params[param], '"%s" is not defined' % param
         except AssertionError as ex:
             logging.error(ex)
-            exit()
+            sys.exit(255)
 
     def _get_cluster(self, cluster):
         """Find and return cluster by name."""
@@ -126,6 +135,8 @@ class VMWareInventory(object):
             logging.debug('vm name: %s, ip: %s', vm_name, vm_ip)
 
             self.inv['_meta']['hostvars'].setdefault(vm_name, dict())
+            if vm_ip:
+                self.inv['_meta']['hostvars'][vm_name]['ansible_host'] = vm_ip
             if self.module.params.get('gather_vm_facts', False):
                 facts = vmware.gather_vm_facts(self.content, vm_obj)
                 self.inv['_meta']['hostvars'][vm_name] = facts
@@ -195,7 +206,7 @@ def main():
     """Entry point."""
     # pylint: disable = too-many-locals
     log_file, log_level = (None, logging.INFO)
-    if '--debug' in argv:
+    if '--debug' in sys.argv:
         log_level = logging.DEBUG
 
     log_format = '%(levelname)s: %(message)s'
@@ -203,11 +214,12 @@ def main():
     logging.debug('running %s', __file__)
 
     with VMWareInventory() as vminv:
-        if '--list' in argv:
+        signal.signal(signal.SIGINT, vminv.signal_handler)
+        if '--list' in sys.argv:
             logging.debug('display list')
             vminv.get_inventory()
             print(json.dumps(vminv.inv, indent=4))
-        elif '--host' in argv:
+        elif '--host' in sys.argv:
             logging.debug('display host')
             logging.error('not implemented.')
             print(json.dumps({}))
