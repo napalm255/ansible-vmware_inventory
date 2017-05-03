@@ -68,5 +68,5 @@ properties:
   - name: config.guestId
     group: true
   - name: config.uuid
-    group: true
   - name: runtime.powerState
+    group: true
