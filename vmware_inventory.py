@@ -26,7 +26,7 @@ if os.path.isfile('dev.yml'):
     __config__ = 'dev.yml'
 
 
-# pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods, too-many-instance-attributes
 class VMWareInventory(object):
     """VMWare Inventory Class."""
 
@@ -41,7 +41,10 @@ class VMWareInventory(object):
         self.inv.setdefault('_meta', dict(hostvars=dict()))
 
         # load configuration
+        self.config_true_values = ['true', 'yes', 1]
         self.config_prefix = 'vmware_'
+        self.config_bools = ['validate_certs', 'gather_vm_facts',
+                             'groupby_custom_values']
         self.config_lists = ['clusters', 'properties', 'custom_values_filters']
         self.config_required = ['hostname', 'username', 'password', 'clusters']
         self._load_config()
@@ -58,6 +61,10 @@ class VMWareInventory(object):
     # pylint: disable=redefined-builtin
     def __exit__(self, type, value, traceback):
         """Exit."""
+
+    def _str_to_bool(self, value):
+        """Convert string to boolean."""
+        return True if value in self.config_true_values else False
 
     def _load_config(self):
         """Load configuration from yaml or environment variables."""
@@ -82,12 +89,17 @@ class VMWareInventory(object):
         for key, value in iteritems(os.environ):
             if self.config_prefix not in key.lower():
                 continue
+
             key = key.lower().replace(self.config_prefix, '')
             if key in self.config_lists:
                 if key == 'properties':
                     value = json.loads(value)
                 else:
                     value = value.split(',')
+                    value = [x.strip() for x in value]
+            if key in self.config_bools:
+                value = self._str_to_bool(value)
+
             self.module.params.update({key: value})
             logging.debug('environment variable: %s = %s', key, value)
 
