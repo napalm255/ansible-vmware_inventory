@@ -12,18 +12,13 @@ from sys import argv
 import json
 import yaml
 from ansible.module_utils import vmware
-from six import iteritems
-# connect_to_api, gather_vm_facts, find_cluster_by_name
+from ansible.module_utils.six import iteritems
 
 __title__ = 'Ansible VMWare Inventory'
 __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
 __version__ = '0.1.0'
 __config__ = 'config.yml'
-
-# for development purposes
-if os.path.isfile('dev.yml'):
-    __config__ = 'dev.yml'
 
 
 # pylint: disable=too-few-public-methods, too-many-instance-attributes
@@ -211,12 +206,11 @@ def main():
         if '--list' in argv:
             logging.debug('display list')
             vminv.get_inventory()
-            print(json.dumps(vminv.inv))
-            # print(json.dumps(inv, indent=4))
+            print(json.dumps(vminv.inv, indent=4))
         elif '--host' in argv:
             logging.debug('display host')
             logging.error('not implemented.')
-            # print(json.dumps({}))
+            print(json.dumps({}))
 
 
 if __name__ == '__main__':
