@@ -52,13 +52,15 @@ class VMWareInventory(object):
 
     def __enter__(self):
         """Enter."""
+        # setup ctrl-c handler
+        signal.signal(signal.SIGINT, self._signal_handler)
         return self
 
     # pylint: disable=redefined-builtin
     def __exit__(self, type, value, traceback):
         """Exit."""
 
-    def signal_handler(self, signum, frame):
+    def _signal_handler(self, signum, frame):
         """Signal handler to catch Ctrl-C."""
         print()
         logging.error('signum: %s, frame: %s', signum, frame)
@@ -116,8 +118,14 @@ class VMWareInventory(object):
     def _validate_config(self):
         """Validate configuration."""
         try:
-            for param in self.config_required:
-                assert self.module.params[param], '"%s" is not defined' % param
+            for param, value in iteritems(self.module.params):
+                logging.debug("%s, %s", param, value)
+                if param in self.config_required:
+                    assert value, '"%s" is not defined' % param
+                if param in self.config_bools:
+                    assert isinstance(value, bool), '"%s" is not a boolean' % param
+                if value is not None and param in self.config_lists:
+                    assert isinstance(value, list), '"%s" is not a list.' % param
         except AssertionError as ex:
             logging.error(ex)
             sys.exit(255)
@@ -214,7 +222,6 @@ def main():
     logging.debug('running %s', __file__)
 
     with VMWareInventory() as vminv:
-        signal.signal(signal.SIGINT, vminv.signal_handler)
         if '--list' in sys.argv:
             logging.debug('display list')
             vminv.get_inventory()
