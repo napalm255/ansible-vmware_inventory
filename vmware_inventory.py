@@ -10,10 +10,23 @@ import signal
 import logging
 import os
 import sys
+import socket
 import json
 import yaml
-from ansible.module_utils import vmware
-from ansible.module_utils.six import iteritems
+
+REQUIRED_MODULES = dict()
+try:
+    from ansible.module_utils import vmware
+    from ansible.module_utils.six import iteritems
+    REQUIRED_MODULES['ansible'] = True
+except ImportError:
+    REQUIRED_MODULES['ansible'] = False
+
+try:
+    from pyVmomi import vim
+    REQUIRED_MODULES['pyvmomi'] = True
+except ImportError:
+    REQUIRED_MODULES['pyvmomi'] = False
 
 __title__ = 'Ansible VMWare Inventory'
 __author__ = 'Brad Gibson'
@@ -47,7 +60,7 @@ class VMWareInventory(object):
         logging.debug('module: %s', self.module.params)
 
         # connect to vcenter
-        self.content = vmware.connect_to_api(self.module)
+        self.content = self._connect()
         logging.debug('content: %s', self.content.about)
 
     def __enter__(self):
@@ -60,12 +73,22 @@ class VMWareInventory(object):
     def __exit__(self, type, value, traceback):
         """Exit."""
 
+    def _connect(self):
+        """Connect to vcenter and return content."""
+        try:
+            return vmware.connect_to_api(self.module)
+        except socket.gaierror as ex:
+            logging.error('connection error\n%s', ex)
+        except vim.fault.InvalidLogin as ex:
+            logging.error('authentication error\n%s', ex.msg)
+        sys.exit(255)
+
     def _signal_handler(self, signum, frame):
         """Signal handler to catch Ctrl-C."""
         print()
         logging.error('signum: %s, frame: %s', signum, frame)
         logging.error('ctrl-c pressed. exiting.')
-        logging.info('dumping output...\n%s', json.dumps(self.inv, indent=4))
+        logging.info('dumping output\n%s', json.dumps(self.inv, indent=4))
         sys.exit(255)
 
     def _str_to_bool(self, value):
@@ -89,7 +112,10 @@ class VMWareInventory(object):
         if os.path.isfile(__config__):
             logging.debug('loading configuration: %s', __config__)
             with open(__config__, 'r') as yaml_file:
-                self.module.params.update(yaml.load(yaml_file))
+                try:
+                    self.module.params.update(yaml.load(yaml_file))
+                except yaml.parser.ParserError as ex:
+                    logging.debug('invalid syntax in config.yml\n%s' % ex)
 
         # loop through environment variables starting with prefix
         for key, value in iteritems(os.environ):
@@ -119,7 +145,6 @@ class VMWareInventory(object):
         """Validate configuration."""
         try:
             for param, value in iteritems(self.module.params):
-                logging.debug("%s, %s", param, value)
                 if param in self.config_required:
                     assert value, '"%s" is not defined' % param
                 if param in self.config_bools:
@@ -220,6 +245,13 @@ def main():
     log_format = '%(levelname)s: %(message)s'
     logging.basicConfig(filename=log_file, level=log_level, format=log_format)
     logging.debug('running %s', __file__)
+
+    missing_requirements = False
+    for req in [r for r in REQUIRED_MODULES if not REQUIRED_MODULES[r]]:
+        logging.error('missing required module: %s', req)
+        missing_requirements = True
+    if missing_requirements:
+        sys.exit(255)
 
     with VMWareInventory() as vminv:
         if '--list' in sys.argv:
