@@ -170,10 +170,12 @@ class VMWareInventory(object):
             self.inv['_meta']['hostvars'].setdefault(vm_name, dict())
             if vm_ip:
                 self.inv['_meta']['hostvars'][vm_name]['ansible_host'] = vm_ip
+
             if self.module.params.get('gather_vm_facts', False):
                 facts = vmware.gather_vm_facts(self.content, vm_obj)
-                # remove snapshot information from facts
                 # BUG: creation_time is not json serializable
+                # issue is with vmware.gather_vm_facts
+                # remove snapshot information from facts to bypass error
                 facts.pop('snapshots', None)
                 facts.pop('current_snapshot', None)
                 self.inv['_meta']['hostvars'][vm_name] = facts
