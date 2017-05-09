@@ -260,7 +260,7 @@ def main():
             print(json.dumps(vminv.inv, indent=4))
         elif '--host' in sys.argv:
             logging.debug('display host')
-            logging.error('not implemented.')
+            logging.debug('not implemented.')
             print(json.dumps({}))
 
 
