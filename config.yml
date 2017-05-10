@@ -49,11 +49,16 @@
 # properties: list({name: str, group: bool})
 #   * required: false
 #   * default: None
-#   * desc: properties to query and optionally group by
+#   * desc: properties to query and optionally group by the value.
+#           use group_alias for boolean values. will use the provided name
+#           and only group when the value is true.
 #   * env: VMWARE_PROPERTIES='[{"name":"config.guestId", "group":true}]'
 #   * example:
 #     - name: config.guestId
 #       group: true
+#     - name: config.template
+#       group: true
+#       group_alias: template
 #
 
 #
@@ -67,6 +72,12 @@ clusters:
 properties:
   - name: config.guestId
     group: true
-  - name: config.uuid
   - name: runtime.powerState
     group: true
+  - name: config.template
+    group: true
+    group_alias: template
+  - name: config.annotation
+  - name: summary.config.memorySizeMB
+  - name: summary.config.numCpu
+  - name: config.uuid
