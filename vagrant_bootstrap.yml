@@ -124,7 +124,7 @@
         marker: "# {mark} MESSAGE OF THE DAY"
         block: |
           This system is setup to run python virtual environments.
-          The vagrant user activates a python 2.6 virtual environment upon login.
+          The vagrant user activates a python 2.7 virtual environment upon login.
 
           Start python 2.6 virtualenv:
             source {{ virtualenv_dir_py26 }}/bin/activate
