@@ -1,0 +1,145 @@
+---
+- hosts: all
+  gather_facts: false
+  become: true
+
+  vars:
+    virtualenv_dir_py26: "$HOME/py26"
+    virtualenv_dir_py27: "$HOME/py27"
+
+  tasks:
+    - name: "Install epel"
+      yum:
+        name: epel-release
+        state: latest
+        validate_certs: false
+
+    - name: "Install system packages"
+      yum:
+        name: "{{ item }}"
+        state: latest
+        validate_certs: false
+      with_items:
+        - git
+        - vim
+        - sshpass
+        - libselinux-python
+        - python-setuptools
+        - python-devel
+        - libffi-devel
+        - openssl-devel
+        - gcc
+        - man
+        - bind-utils
+        - mlocate
+        - "@Development tools"
+        - zlib-devel
+        - bzip2-devel
+        - ncurses-devel
+        - sqlite-devel
+
+    - name: "Download python pip setup utility"
+      get_url:
+        url: https://bootstrap.pypa.io/get-pip.py
+        dest: /tmp/get-pip.py
+
+    - name: "Python 2.6 - Install PIP"
+      command: /usr/bin/python2.6 /tmp/get-pip.py
+
+    - name: "Python 2.6 - Install virtualenv"
+      pip:
+        name: "virtualenv"
+        version: "15.1.0"
+        executable: /usr/bin/pip2.6
+
+    - name: "Python 2.6 - Create virtualenv"
+      pip:
+        name: "pip"
+        virtualenv: "{{ virtualenv_dir_py26 }}"
+        virtualenv_site_packages: true
+        virtualenv_python: /usr/bin/python2.6
+      become: false
+
+    - name: "Python 2.7 - Download"
+      unarchive:
+        src: https://www.python.org/ftp/python/2.7.13/Python-2.7.13.tgz
+        dest: /usr/src
+        remote_src: true
+
+    - name: "Python 2.7 - Configure"
+      command: ./configure
+      args:
+        chdir: /usr/src/Python-2.7.13
+
+    - name: "Python 2.7 - Make"
+      command: make altinstall
+      args:
+        chdir: /usr/src/Python-2.7.13
+
+    - name: "Python 2.7 - Install PIP"
+      command: /usr/local/bin/python2.7 /tmp/get-pip.py
+
+    - name: "Python 2.7 - Install virtualenv"
+      pip:
+        name: "virtualenv"
+        version: "15.1.0"
+        executable: /usr/local/bin/pip2.7
+
+    - name: "Python 2.7 - Create virtualenv"
+      pip:
+        name: "pip"
+        virtualenv: "{{ virtualenv_dir_py27 }}"
+        virtualenv_site_packages: true
+        virtualenv_python: /usr/local/bin/python2.7
+      become: false
+
+    - name: "Activate virtualenv on login"
+      lineinfile:
+        dest: "$HOME/.bashrc"
+        regexp: "^source {{ virtualenv_dir_py27 }}/bin/activate"
+        line: "source {{ virtualenv_dir_py27 }}/bin/activate"
+        create: true
+      become: false
+
+    - name: "Set TERM to xterm-256color"
+      lineinfile:
+        dest: "$HOME/.bashrc"
+        regexp: "^export TERM=xterm-256color"
+        line: "export TERM=xterm-256color"
+        create: true
+      become: false
+
+    - name: "Setup pip.conf"
+      blockinfile:
+        dest: "/etc/pip.conf"
+        create: true
+        block: |
+          [list]
+          format=columns
+
+    - name: "Setup MOTD"
+      blockinfile:
+        dest: "/etc/motd"
+        create: true
+        marker: "# {mark} MESSAGE OF THE DAY"
+        block: |
+          This system is setup to run python virtual environments.
+          The vagrant user activates a python 2.6 virtual environment upon login.
+
+          Start python 2.6 virtualenv:
+            source {{ virtualenv_dir_py26 }}/bin/activate
+
+          Start python 2.7 virtualenv:
+            source {{ virtualenv_dir_py27 }}/bin/activate
+
+          Deactivate virtualenv:
+            deactivate
+
+          Host share path:
+            /vagrant
+
+    - name: "Install powerbash"
+      get_url:
+        url: https://raw.githubusercontent.com/napalm255/powerbash/master/powerbash.sh
+        dest: /etc/profile.d/z_powerbash.sh
+        mode: 0775
