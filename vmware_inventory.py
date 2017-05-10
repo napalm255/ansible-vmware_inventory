@@ -171,11 +171,10 @@ class VMWareInventory(object):
             if vm_ip:
                 self.inv['_meta']['hostvars'][vm_name]['ansible_host'] = vm_ip
 
+            self._get_customvalues(vm_obj)
+
             if self.module.params.get('properties'):
                 self._get_vm_properties(vm_obj)
-
-            if self.module.params.get('groupby_custom_values'):
-                self._get_customvalues(vm_obj)
 
             if self.module.params.get('gather_vm_facts'):
                 facts = vmware.gather_vm_facts(self.content, vm_obj)
@@ -200,14 +199,16 @@ class VMWareInventory(object):
             if prop.get('group'):
                 self.inv.setdefault(vm_prop, list())
                 self.inv[vm_prop].append(vm_obj.config.name.lower())
-            self.inv['_meta']['hostvars'][vm_name].update({parts[-1]: vm_prop})
+            prop_key = parts[-1].lower()
+            self.inv['_meta']['hostvars'][vm_name].update({prop_key: vm_prop})
             logging.debug('vm property: %s', {parts[-1]: vm_prop})
 
     def _get_customvalues(self, obj):
         """Get custom values."""
         filters = self.module.params.get('custom_values_filters')
+        obj_name = obj.name.lower()
         cfm = self.content.customFieldsManager
-        # Resolve custom values
+        self.inv['_meta']['hostvars'][obj_name].setdefault('customvalues', dict())
         for value_obj in obj.summary.customValue:
             key = value_obj.key
             if cfm is not None and cfm.field:
@@ -218,10 +219,13 @@ class VMWareInventory(object):
                         break
             if filters and key not in filters:
                 continue
-            group_name = '%s_%s' % (key, value_obj.value)
-            self.inv.setdefault(group_name, list())
-            self.inv[group_name].append(obj.config.name.lower())
-            logging.debug('vm custom value: %s', group_name)
+            cval = {key: value_obj.value}
+            self.inv['_meta']['hostvars'][obj_name]['customvalues'].update(cval)
+            if self.module.params.get('groupby_custom_values'):
+                group_name = '%s_%s' % (key, value_obj.value)
+                self.inv.setdefault(group_name, list())
+                self.inv[group_name].append(obj.config.name.lower())
+                logging.debug('vm custom value: %s', group_name)
 
     def get_inventory(self):
         """Get inventory."""
@@ -235,10 +239,10 @@ class VMWareInventory(object):
             for host in cluster_obj.host:
                 esxi_name = host.name.lower()
                 esxi_ip = host.summary.managementServerIp
-                self._get_customvalues(host)
                 self.inv['esxi'].append(esxi_name)
                 self.inv['_meta']['hostvars'].setdefault(esxi_name, dict())
                 self.inv['_meta']['hostvars'][esxi_name].update({'ansible_host': esxi_ip})
+                self._get_customvalues(host)
                 logging.debug('esxi host: %s', esxi_name)
 
                 # get vms
