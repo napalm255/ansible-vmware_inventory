@@ -1,0 +1,11 @@
+# yamllint configuration
+# vi:syntax=yaml
+
+---
+extends: default
+
+rules:
+  # 90 chars should be enough, but don't fail if a line is longer
+  line-length:
+    max: 90
+    level: warning
