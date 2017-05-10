@@ -2,22 +2,30 @@
 # -*- coding: utf-8 -*-
 """Performance testing of vmware_inventory."""
 
+from __future__ import print_function
 import subprocess
 import os
-import pytest
+
+try:
+    import pytest
+except ImportError:
+    print('pytest not found.')
+    exit(1)
 
 
-def ansible_list_hosts():
+def test_ansible_list_hosts(benchmark):
     """Test performance using ansible-playbook --list-hosts."""
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    play = '%s/test.yml' % dir_path
-    inventory = '%s/vmware_inventory.py' % dir_path
-    subprocess.call(['ansible-playbook', play, '-i', inventory, '--list-hosts'])
 
+    @benchmark
+    def run():
+        """Run test."""
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        play = '%s/test.yml' % dir_path
+        inventory = '%s/vmware_inventory.py' % dir_path
+        res = subprocess.call(['ansible-playbook', play, '-i', inventory, '--list-hosts'])
+        return res
 
-def test_benchmarks(benchmark):
-    """Benchmark tests."""
-    benchmark(ansible_list_hosts)
+    assert run()
 
 
 if __name__ == '__main__':
