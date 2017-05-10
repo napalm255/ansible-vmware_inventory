@@ -13,7 +13,6 @@ import sys
 import socket
 import json
 import yaml
-from operator import itemgetter
 
 REQUIRED_MODULES = dict()
 try:
