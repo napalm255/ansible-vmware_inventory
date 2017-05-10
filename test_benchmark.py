@@ -23,7 +23,7 @@ def test_ansible_list_hosts(benchmark):
         play = '%s/test.yml' % dir_path
         inventory = '%s/vmware_inventory.py' % dir_path
         res = subprocess.call(['ansible-playbook', play, '-i', inventory, '--list-hosts'])
-        return res
+        return False if res > 0 else True
 
     assert run()
 
