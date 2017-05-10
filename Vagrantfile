@@ -7,7 +7,7 @@ Vagrant.configure("2") do |config|
       ansible.verbose = true
     end
     virtualenv.vm.provision :shell do |shell|
-      shell.inline = "pip install -r requirements_dev.txt"
+      shell.inline = "pip install -r /vagrant/requirements_dev.txt"
     end
   end
 
