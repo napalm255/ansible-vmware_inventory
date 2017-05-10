@@ -13,6 +13,7 @@ import sys
 import socket
 import json
 import yaml
+from operator import itemgetter
 
 REQUIRED_MODULES = dict()
 try:
@@ -197,8 +198,16 @@ class VMWareInventory(object):
             for part in parts[1:]:
                 vm_prop = getattr(vm_prop, part)
             if prop.get('group'):
-                self.inv.setdefault(vm_prop, list())
-                self.inv[vm_prop].append(vm_obj.config.name.lower())
+                group_name = vm_prop
+                if prop.get('group_alias'):
+                    group_name = prop.get('group_alias')
+                # when property is boolean only group when true
+                if isinstance(vm_prop, bool) and vm_prop:
+                    self.inv.setdefault(group_name, list())
+                    self.inv[group_name].append(vm_obj.config.name.lower())
+                elif not isinstance(vm_prop, bool):
+                    self.inv.setdefault(group_name, list())
+                    self.inv[group_name].append(vm_obj.config.name.lower())
             prop_key = parts[-1].lower()
             self.inv['_meta']['hostvars'][vm_name].update({prop_key: vm_prop})
             logging.debug('vm property: %s', {parts[-1]: vm_prop})
