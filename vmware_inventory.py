@@ -53,8 +53,9 @@ class VMWareInventory(object):
         self.config_true_values = ['true', 'yes', 1]
         self.config_prefix = 'vmware_'
         self.config_bools = ['validate_certs', 'gather_vm_facts',
-                             'groupby_custom_values']
-        self.config_lists = ['clusters', 'properties', 'custom_values_filters']
+                             'custom_values_groupby_keyval']
+        self.config_lists = ['clusters', 'properties', 'custom_values_filters',
+                             'custom_values_groupby_val']
         self.config_required = ['hostname', 'username', 'password', 'clusters']
         self._load_config()
         logging.debug('module: %s', self.module.params)
@@ -104,7 +105,8 @@ class VMWareInventory(object):
                          'clusters': None,
                          'validate_certs': True,
                          'gather_vm_facts': False,
-                         'groupby_custom_values': True,
+                         'custom_values_groupby_keyval': True,
+                         'custom_values_groupby_val': None,
                          'custom_values_filters': None,
                          'properties': None}
         self.module.params.update(sane_defaults)
@@ -205,9 +207,12 @@ class VMWareInventory(object):
                     self.inv.setdefault(group_name, list())
                     self.inv[group_name].append(vm_obj.config.name.lower())
                 elif not isinstance(vm_prop, bool):
+                    group_name = group_name.lower()
                     self.inv.setdefault(group_name, list())
                     self.inv[group_name].append(vm_obj.config.name.lower())
             prop_key = parts[-1].lower()
+            if isinstance(vm_prop, str):
+                vm_prop = vm_prop.lower()
             self.inv['_meta']['hostvars'][vm_name].update({prop_key: vm_prop})
             logging.debug('vm property: %s', {parts[-1]: vm_prop})
 
@@ -219,6 +224,7 @@ class VMWareInventory(object):
         self.inv['_meta']['hostvars'][obj_name].setdefault('customvalues', dict())
         for value_obj in obj.summary.customValue:
             key = value_obj.key
+            group_name = None
             if cfm is not None and cfm.field:
                 for field in cfm.field:
                     if field.key == value_obj.key:
@@ -227,13 +233,16 @@ class VMWareInventory(object):
                         break
             if filters and key not in filters:
                 continue
-            cval = {key: value_obj.value}
+            cval = {key.lower(): value_obj.value.lower()}
             self.inv['_meta']['hostvars'][obj_name]['customvalues'].update(cval)
-            if self.module.params.get('groupby_custom_values'):
-                group_name = '%s_%s' % (key, value_obj.value)
+            if key in self.module.params.get('custom_values_groupby_val'):
+                group_name = value_obj.value.lower()
+            elif self.module.params.get('custom_values_groupby_keyval'):
+                group_name = '%s_%s' % (key.lower(), value_obj.value.lower())
+            if group_name:
                 self.inv.setdefault(group_name, list())
                 self.inv[group_name].append(obj.config.name.lower())
-                logging.debug('vm custom value: %s', group_name)
+                logging.debug('vm custom value (group by key_val): %s', group_name)
 
     def get_inventory(self):
         """Get inventory."""

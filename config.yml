@@ -36,16 +36,21 @@
 #   * desc: gathers various vm facts for hostvars
 #   * warning: decreases performance
 #   * env: VMWARE_GATHER_VM_FACTS=true
-# groupby_custom_values: bool
-#   * required: false
-#   * default: true
-#   * desc: creates groups in the form of key_value from the custom values
-#   * env: VMWARE_GROUPBY_CUSTOM_VALUES=false
 # custom_values_filters: list
 #   * required: false
 #   * default: None
 #   * desc: only group based on a keyword filter
 #   * env: VMWARE_CUSTOM_VALUES_FILTERS="Environment,Function"
+# custom_values_groupby_keyval: bool
+#   * required: false
+#   * default: true
+#   * desc: creates groups in the form of key_value from the custom values
+#   * env: VMWARE_GROUPBY_CUSTOM_VALUES=false
+# custom_values_groupby_val: list
+#   * required: false
+#   * default: None
+#   * desc: creates groups based off the value of defined custom values
+#   * env: VMWARE_CUSTOM_VALUES_GROUPBY_VAL="Environment"
 # properties: list({name: str, group: bool})
 #   * required: false
 #   * default: None
