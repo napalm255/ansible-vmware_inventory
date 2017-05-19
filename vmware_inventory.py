@@ -106,7 +106,7 @@ class VMWareInventory(object):
                          'validate_certs': True,
                          'gather_vm_facts': False,
                          'custom_values_groupby_keyval': True,
-                         'custom_values_groupby_val': None,
+                         'custom_values_groupby_val': list(),
                          'custom_values_filters': None,
                          'properties': None}
         self.module.params.update(sane_defaults)
@@ -235,7 +235,7 @@ class VMWareInventory(object):
                 continue
             cval = {key.lower(): value_obj.value.lower()}
             self.inv['_meta']['hostvars'][obj_name]['customvalues'].update(cval)
-            if key in self.module.params.get('custom_values_groupby_val', list()):
+            if key in self.module.params.get('custom_values_groupby_val'):
                 group_name = value_obj.value.lower()
             elif self.module.params.get('custom_values_groupby_keyval'):
                 group_name = '%s_%s' % (key.lower(), value_obj.value.lower())
