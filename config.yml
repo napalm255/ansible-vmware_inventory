@@ -57,6 +57,7 @@
 #   * desc: properties to query and optionally group by the value.
 #           use group_alias for boolean values. will use the provided name
 #           and only group when the value is true.
+#           use exclude_if to exclude the host based on the provided value.
 #   * env: VMWARE_PROPERTIES='[{"name":"config.guestId", "group":true}]'
 #   * example:
 #     - name: config.guestId
@@ -64,6 +65,8 @@
 #     - name: config.template
 #       group: true
 #       group_alias: template
+#     - name: runtime.powerState
+#       exclude_if: poweredoff
 #
 
 #
@@ -78,11 +81,11 @@ properties:
   - name: config.guestId
     group: true
   - name: runtime.powerState
-    group: true
-  - name: config.template
-    group: true
-    group_alias: template
+    exclude_if: poweredoff
   - name: config.annotation
   - name: summary.config.memorySizeMB
   - name: summary.config.numCpu
   - name: config.uuid
+  - name: config.template
+    group: true
+    group_alias: template
