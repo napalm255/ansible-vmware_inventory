@@ -173,10 +173,12 @@ class VMWareInventory(object):
             if vm_ip:
                 self.inv['_meta']['hostvars'][vm_name]['ansible_host'] = vm_ip
 
-            self._get_customvalues(vm_obj)
-
             if self.module.params.get('properties'):
-                self._get_vm_properties(vm_obj)
+                if not self._get_vm_properties(vm_obj):
+                    self.inv['_meta']['hostvars'].pop(vm_name)
+                    continue
+
+            self._get_customvalues(vm_obj)
 
             if self.module.params.get('gather_vm_facts'):
                 facts = vmware.gather_vm_facts(self.content, vm_obj)
@@ -191,13 +193,29 @@ class VMWareInventory(object):
     def _get_vm_properties(self, vm_obj):
         """Get vm properties."""
         vm_name = vm_obj.config.name.lower()
-        for prop in self.module.params.get('properties', list()):
+        properties = sorted(self.module.params.get('properties', list()),
+                            key=lambda k: ('exclude_if' not in k,
+                                           k.get('exclude_if', None)))
+        # for prop in self.module.params.get('properties', list()):
+        for prop in properties:
             if isinstance(prop, str):
                 prop = {'name': prop}
             parts = prop['name'].split('.')
             vm_prop = getattr(vm_obj, parts[0])
             for part in parts[1:]:
                 vm_prop = getattr(vm_prop, part)
+            # handle exclusions
+            exclude = prop.get('exclude_if')
+            excluded = False
+            if isinstance(exclude, str):
+                if exclude.lower() == vm_prop.lower():
+                    excluded = True
+            elif exclude == vm_prop:
+                excluded = True
+            if excluded:
+                logging.debug('excluding %s: %s=%s', vm_name, prop['name'], vm_prop)
+                return False
+            # group properties
             if prop.get('group'):
                 group_name = vm_prop
                 if prop.get('group_alias'):
@@ -215,6 +233,7 @@ class VMWareInventory(object):
                 vm_prop = vm_prop.lower()
             self.inv['_meta']['hostvars'][vm_name].update({prop_key: vm_prop})
             logging.debug('vm property: %s', {parts[-1]: vm_prop})
+        return True
 
     def _get_customvalues(self, obj):
         """Get custom values."""
