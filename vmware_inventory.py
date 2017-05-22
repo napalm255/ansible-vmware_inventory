@@ -242,7 +242,7 @@ class VMWareInventory(object):
             if group_name:
                 self.inv.setdefault(group_name, list())
                 self.inv[group_name].append(obj.config.name.lower())
-                logging.debug('vm custom value (group by key_val): %s', group_name)
+                logging.debug('vm custom value (group name): %s', group_name)
 
     def get_inventory(self):
         """Get inventory."""
