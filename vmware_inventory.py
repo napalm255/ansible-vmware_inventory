@@ -198,7 +198,7 @@ class VMWareInventory(object):
                                            k.get('exclude_if', None)))
         # for prop in self.module.params.get('properties', list()):
         groups = dict()
-        hostvars = {'_meta': {'hostvars': dict()}}
+        hostvars = dict()
         excluded = False
         for prop in properties:
             if isinstance(prop, str):
@@ -212,8 +212,10 @@ class VMWareInventory(object):
             if isinstance(exclude, str):
                 if exclude.lower() == vm_prop.lower():
                     excluded = True
+                    break
             elif exclude == vm_prop:
                 excluded = True
+                break
             # group properties
             if prop.get('group'):
                 group_name = vm_prop
@@ -230,6 +232,7 @@ class VMWareInventory(object):
             prop_key = parts[-1].lower()
             if isinstance(vm_prop, str):
                 vm_prop = vm_prop.lower()
+            hostvars.setdefault(vm_name, dict())
             hostvars[vm_name].update({prop_key: vm_prop})
             logging.debug('vm property: %s', {parts[-1]: vm_prop})
         if excluded:
