@@ -79,9 +79,9 @@ class VMWareInventory(object):
         try:
             return vmware.connect_to_api(self.module)
         except socket.gaierror as ex:
-            logging.error('connection error\n%s', ex)
+            logging.critical('connection error\n%s', ex)
         except vim.fault.InvalidLogin as ex:
-            logging.error('authentication error\n%s', ex.msg)
+            logging.critical('authentication error\n%s', ex.msg)
         sys.exit(255)
 
     def _signal_handler(self, signum, frame):
@@ -274,8 +274,13 @@ class VMWareInventory(object):
         """Get inventory."""
         # loop through clusters
         for cluster in self.module.params.get('clusters', list):
-            cluster_obj = self._get_cluster(cluster)
-            logging.debug('cluster object: %s', cluster_obj)
+            try:
+                cluster_obj = self._get_cluster(cluster)
+                assert cluster_obj is not None, 'invalid cluster name: %s' % cluster
+                logging.debug('cluster name: %s', cluster)
+            except AssertionError as ex:
+                logging.error(ex)
+                continue
 
             # loop through esxi hosts
             self.inv.setdefault('esxi', list())
@@ -305,7 +310,7 @@ def main():
 
     missing_requirements = False
     for req in [r for r in REQUIRED_MODULES if not REQUIRED_MODULES[r]]:
-        logging.error('missing required module: %s', req)
+        logging.critical('missing required module: %s', req)
         missing_requirements = True
     if missing_requirements:
         sys.exit(255)
