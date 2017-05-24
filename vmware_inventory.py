@@ -10,6 +10,7 @@ import signal
 import logging
 import os
 import sys
+import time
 import socket
 import json
 import yaml
@@ -33,13 +34,16 @@ __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
 __version__ = '0.1.0'
 __config__ = 'config.yml'
+__cache_file__ = '.vminv.json'
+__cache_dir__ = os.path.dirname(os.path.realpath(__file__))
+__cache__ = '%s/%s' % (__cache_dir__, __cache_file__)
 
 
 # pylint: disable=too-few-public-methods, too-many-instance-attributes
 class VMWareInventory(object):
     """VMWare Inventory Class."""
 
-    def __init__(self):
+    def __init__(self, refresh=False):
         """Init."""
         # initialize module parameters
         self.module = lambda: None
@@ -52,13 +56,26 @@ class VMWareInventory(object):
         # load configuration
         self.config_true_values = ['true', 'yes', 1]
         self.config_prefix = 'vmware_'
-        self.config_bools = ['validate_certs', 'gather_vm_facts',
+        self.config_ints = ['cache_time']
+        self.config_bools = ['validate_certs',
+                             'cache',
+                             'gather_vm_facts',
                              'custom_values_groupby_keyval']
-        self.config_lists = ['clusters', 'properties', 'custom_values_filters',
+        self.config_lists = ['clusters',
+                             'properties',
+                             'custom_values_filters',
                              'custom_values_groupby_val']
         self.config_required = ['hostname', 'username', 'password', 'clusters']
         self._load_config()
         logging.debug('module: %s', self.module.params)
+
+        self.caching = self.module.params.get('cache')
+        self.cache = self.module.params.get('cache_file')
+        self.cached = self._check_cache()
+        self.refresh = refresh
+        if self.refresh or not self.cached:
+            self._delete_cache()
+            self.cached = self._check_cache()
 
         # connect to vcenter
         self.content = self._connect()
@@ -73,6 +90,8 @@ class VMWareInventory(object):
     # pylint: disable=redefined-builtin
     def __exit__(self, type, value, traceback):
         """Exit."""
+        if self.caching and not self.cached:
+            self._write_cache()
 
     def _connect(self):
         """Connect to vcenter and return content."""
@@ -104,6 +123,9 @@ class VMWareInventory(object):
                          'password': None,
                          'clusters': None,
                          'validate_certs': True,
+                         'cache': False,
+                         'cache_file': __cache__,
+                         'cache_time': 300,
                          'gather_vm_facts': False,
                          'custom_values_groupby_keyval': True,
                          'custom_values_groupby_val': list(),
@@ -141,6 +163,9 @@ class VMWareInventory(object):
             if isinstance(self.module.params.get(param), str):
                 self.module.params[param] = [self.module.params[param]]
 
+        for param in self.config_ints:
+            self.module.params[param] = int(self.module.params[param])
+
         self._validate_config()
 
     def _validate_config(self):
@@ -149,6 +174,8 @@ class VMWareInventory(object):
             for param, value in iteritems(self.module.params):
                 if param in self.config_required:
                     assert value, '"%s" is not defined' % param
+                if param in self.config_ints:
+                    assert isinstance(value, int), '"%s" is not a integer' % param
                 if param in self.config_bools:
                     assert isinstance(value, bool), '"%s" is not a boolean' % param
                 if value is not None and param in self.config_lists:
@@ -156,6 +183,47 @@ class VMWareInventory(object):
         except AssertionError as ex:
             logging.error(ex)
             sys.exit(255)
+
+    def _check_cache(self):
+        """Check cache."""
+        if self.module.params.get('cache'):
+            if os.path.isfile(self.cache):
+                now = time.time()
+                limit = now - self.module.params.get('cache_time')
+                ftime = os.path.getctime(self.cache)
+                if ftime < limit:
+                    logging.debug('cache is old. refreshing.')
+                    return False
+                return True
+        return False
+
+    def _load_cache(self):
+        """Load cache."""
+        the_cache = dict()
+        logging.debug('loading cache: %s', self.cache)
+        try:
+            with open(self.cache) as cache:
+                the_cache = cache.read()
+            self.inv.update(json.loads(the_cache))
+        except IOError as ex:
+            logging.debug('error loading cache: %s', ex)
+
+    def _write_cache(self):
+        """Write cache."""
+        logging.debug('writing cache: %s', self.cache)
+        try:
+            with open(self.cache, 'w') as cache:
+                cache.write(json.dumps(self.inv, indent=4))
+        except IOError as ex:
+            logging.error('error writing cache: %s', ex)
+
+    def _delete_cache(self):
+        """Delete cache."""
+        logging.debug('deleting cache: %s', self.cache)
+        try:
+            os.remove(self.cache)
+        except OSError as ex:
+            logging.debug('error deleting cache: %s', ex)
 
     def _get_cluster(self, cluster):
         """Find and return cluster by name."""
@@ -270,7 +338,7 @@ class VMWareInventory(object):
                 self.inv[group_name].append(obj.config.name.lower())
                 logging.debug('vm custom value (group name): %s', group_name)
 
-    def get_inventory(self):
+    def _get_inventory(self):
         """Get inventory."""
         # loop through clusters
         for cluster in self.module.params.get('clusters', list):
@@ -296,6 +364,17 @@ class VMWareInventory(object):
                 # get vms
                 self._get_vms(host)
 
+    def inventory(self):
+        """Return inventory."""
+        if self.caching:
+            if not self.refresh and self.cached:
+                self._load_cache()
+            else:
+                self._get_inventory()
+        else:
+            self._get_inventory()
+        return self.inv
+
 
 def main():
     """Entry point."""
@@ -315,11 +394,14 @@ def main():
     if missing_requirements:
         sys.exit(255)
 
-    with VMWareInventory() as vminv:
+    refresh = False
+    if '--refresh-cache' in sys.argv:
+        logging.debug('forcing refresh of cache')
+        refresh = True
+    with VMWareInventory(refresh) as vminv:
         if '--list' in sys.argv:
             logging.debug('display list')
-            vminv.get_inventory()
-            print(json.dumps(vminv.inv, indent=4))
+            print(json.dumps(vminv.inventory(), indent=4))
         elif '--host' in sys.argv:
             logging.debug('display host')
             logging.debug('not implemented.')
