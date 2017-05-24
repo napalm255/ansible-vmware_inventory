@@ -32,11 +32,9 @@ except ImportError:
 __title__ = 'Ansible VMWare Inventory'
 __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __config__ = 'config.yml'
-__cache_file__ = '.vminv.json'
-__cache_dir__ = os.path.dirname(os.path.realpath(__file__))
-__cache__ = '%s/%s' % (__cache_dir__, __cache_file__)
+__path__ = os.path.dirname(os.path.realpath(__file__))
 
 
 # pylint: disable=too-few-public-methods, too-many-instance-attributes
@@ -47,18 +45,37 @@ class VMWareInventory(object):
         """Init."""
         # initialize module parameters
         self.module = lambda: None
+
         setattr(self.module, 'params', dict())
 
         # initialize inventory
         self.inv = dict()
         self.inv.setdefault('_meta', dict(hostvars=dict()))
 
+        # truth handling
+        self.true_values = ['true', 'yes', 'y', 1]
+        self._str_to_bool = lambda x: True if x.lower() in self.true_values else False
+
         # load configuration
-        self.config_true_values = ['true', 'yes', 1]
+        self.sane_defaults = {'hostname': None,
+                              'username': None,
+                              'password': None,
+                              'clusters': None,
+                              'validate_certs': True,
+                              'caching': False,
+                              'cache_path': __path__,
+                              'cache_file': '.vminv.json',
+                              'cache_max_age': 300,
+                              'gather_vm_facts': False,
+                              'custom_values_groupby_keyval': True,
+                              'custom_values_groupby_val': list(),
+                              'custom_values_filters': None,
+                              'properties': None}
+        self.config_redacted = '*REDACTED*'
         self.config_prefix = 'vmware_'
-        self.config_ints = ['cache_time']
+        self.config_ints = ['cache_max_age']
         self.config_bools = ['validate_certs',
-                             'cache',
+                             'caching',
                              'gather_vm_facts',
                              'custom_values_groupby_keyval']
         self.config_lists = ['clusters',
@@ -67,15 +84,16 @@ class VMWareInventory(object):
                              'custom_values_groupby_val']
         self.config_required = ['hostname', 'username', 'password', 'clusters']
         self._load_config()
-        logging.debug('module: %s', self.module.params)
+        self._validate_config()
 
-        self.caching = self.module.params.get('cache')
-        self.cache = self.module.params.get('cache_file')
+        self.caching = self.module.params.get('caching')
+        self.cache = (self.module.params.get('cache_path').rstrip('/') + '/' +
+                      self.module.params.get('cache_file'))
         self.cached = self._check_cache()
         self.refresh = refresh
         if self.refresh or not self.cached:
             self._delete_cache()
-            self.cached = self._check_cache()
+            self.cached = False
 
         # connect to vcenter
         self.content = self._connect()
@@ -101,37 +119,22 @@ class VMWareInventory(object):
             logging.critical('connection error\n%s', ex)
         except vim.fault.InvalidLogin as ex:
             logging.critical('authentication error\n%s', ex.msg)
+        except AttributeError:
+            logging.error('error connecting to vcenter')
         sys.exit(255)
 
     def _signal_handler(self, signum, frame):
         """Signal handler to catch Ctrl-C."""
         print()
-        logging.error('signum: %s, frame: %s', signum, frame)
-        logging.error('ctrl-c pressed. exiting.')
-        logging.info('dumping output\n%s', json.dumps(self.inv, indent=4))
+        logging.critical('signum: %s, frame: %s', signum, frame)
+        logging.critical('ctrl-c pressed. exiting.')
+        logging.info('dumping inventory\n%s', json.dumps(self.inv, indent=4))
         sys.exit(255)
-
-    def _str_to_bool(self, value):
-        """Convert string to boolean."""
-        return True if value in self.config_true_values else False
 
     def _load_config(self):
         """Load configuration from yaml or environment variables."""
         # define and load sane defaults
-        sane_defaults = {'hostname': None,
-                         'username': None,
-                         'password': None,
-                         'clusters': None,
-                         'validate_certs': True,
-                         'cache': False,
-                         'cache_file': __cache__,
-                         'cache_time': 300,
-                         'gather_vm_facts': False,
-                         'custom_values_groupby_keyval': True,
-                         'custom_values_groupby_val': list(),
-                         'custom_values_filters': None,
-                         'properties': None}
-        self.module.params.update(sane_defaults)
+        self.module.params.update(self.sane_defaults)
 
         if os.path.isfile(__config__):
             logging.debug('loading configuration: %s', __config__)
@@ -157,6 +160,9 @@ class VMWareInventory(object):
                 value = self._str_to_bool(value)
 
             self.module.params.update({key: value})
+            # redact password for debug
+            if key == 'password':
+                value = self.config_redacted
             logging.debug('environment variable: %s = %s', key, value)
 
         for param in self.config_lists:
@@ -165,8 +171,6 @@ class VMWareInventory(object):
 
         for param in self.config_ints:
             self.module.params[param] = int(self.module.params[param])
-
-        self._validate_config()
 
     def _validate_config(self):
         """Validate configuration."""
@@ -184,12 +188,17 @@ class VMWareInventory(object):
             logging.error(ex)
             sys.exit(255)
 
+        validated_config = dict(self.module.params)
+        # redact password for debug
+        validated_config['password'] = self.config_redacted
+        logging.debug('configuration validated: %s', validated_config)
+
     def _check_cache(self):
         """Check cache."""
-        if self.module.params.get('cache'):
+        if self.module.params.get('caching'):
             if os.path.isfile(self.cache):
                 now = time.time()
-                limit = now - self.module.params.get('cache_time')
+                limit = now - self.module.params.get('cache_max_age')
                 ftime = os.path.getctime(self.cache)
                 if ftime < limit:
                     logging.debug('cache is old. refreshing.')

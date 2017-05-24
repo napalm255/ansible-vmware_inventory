@@ -9,7 +9,7 @@ with open('requirements.txt') as requirements_file:
 
 setup(
     name='vmware_inventory',
-    version='0.1.0',
+    version='0.2.0',
     description="Ansible VMWare Inventory",
     long_description="Ansible VMWare Inventory",
     author="Brad Gibson",
