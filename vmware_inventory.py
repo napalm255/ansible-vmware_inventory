@@ -34,43 +34,45 @@ __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
 __version__ = '0.2.0'
 __config__ = 'config.yml'
-__path__ = os.path.dirname(os.path.realpath(__file__))
+__log__ = os.path.splitext(__file__)[0] + '.log'
 
 
 # pylint: disable=too-few-public-methods, too-many-instance-attributes
 class VMWareInventory(object):
     """VMWare Inventory Class."""
 
-    def __init__(self, refresh=False):
+    def __init__(self, config, refresh=False):
         """Init."""
+        self.path = os.path.dirname(os.path.realpath(__file__))
         # initialize module parameters
         self.module = lambda: None
-
         setattr(self.module, 'params', dict())
+        # initialize sane defaults
+        self.module.params.update({'hostname': None,
+                                   'username': None,
+                                   'password': None,
+                                   'clusters': None,
+                                   'validate_certs': True,
+                                   'caching': False,
+                                   'cache_path': self.path,
+                                   'cache_file': '.vminv.json',
+                                   'cache_max_age': 300,
+                                   'gather_vm_facts': False,
+                                   'custom_values_groupby_keyval': True,
+                                   'custom_values_groupby_val': list(),
+                                   'custom_values_filters': None,
+                                   'properties': None})
 
         # initialize inventory
         self.inv = dict()
         self.inv.setdefault('_meta', dict(hostvars=dict()))
 
         # truth handling
-        self.true_values = ['true', 'yes', 'y', 1]
-        self._str_to_bool = lambda x: True if x.lower() in self.true_values else False
+        self.true_vals = ['true', 'yes', 'y', 1]
+        self._str_to_bool = lambda x: True if x.lower() in self.true_vals else False
 
-        # load configuration
-        self.sane_defaults = {'hostname': None,
-                              'username': None,
-                              'password': None,
-                              'clusters': None,
-                              'validate_certs': True,
-                              'caching': False,
-                              'cache_path': __path__,
-                              'cache_file': '.vminv.json',
-                              'cache_max_age': 300,
-                              'gather_vm_facts': False,
-                              'custom_values_groupby_keyval': True,
-                              'custom_values_groupby_val': list(),
-                              'custom_values_filters': None,
-                              'properties': None}
+        # configuration handling
+        self.config = config
         self.config_redacted = '*REDACTED*'
         self.config_prefix = 'vmware_'
         self.config_ints = ['cache_max_age']
@@ -86,6 +88,7 @@ class VMWareInventory(object):
         self._load_config()
         self._validate_config()
 
+        # cache handling
         self.caching = self.module.params.get('caching')
         self.cache = (self.module.params.get('cache_path').rstrip('/') + '/' +
                       self.module.params.get('cache_file'))
@@ -97,7 +100,7 @@ class VMWareInventory(object):
 
         # connect to vcenter
         self.content = self._connect()
-        logging.debug('content: %s', self.content.about)
+        logging.debug('vcenter information:\n%s', self.content.about)
 
     def __enter__(self):
         """Enter."""
@@ -121,7 +124,7 @@ class VMWareInventory(object):
             logging.critical('authentication error\n%s', ex.msg)
         except AttributeError:
             logging.error('error connecting to vcenter')
-        sys.exit(255)
+        sys.exit(1)
 
     def _signal_handler(self, signum, frame):
         """Signal handler to catch Ctrl-C."""
@@ -133,9 +136,6 @@ class VMWareInventory(object):
 
     def _load_config(self):
         """Load configuration from yaml or environment variables."""
-        # define and load sane defaults
-        self.module.params.update(self.sane_defaults)
-
         if os.path.isfile(__config__):
             logging.debug('loading configuration: %s', __config__)
             with open(__config__, 'r') as yaml_file:
@@ -172,6 +172,12 @@ class VMWareInventory(object):
         for param in self.config_ints:
             self.module.params[param] = int(self.module.params[param])
 
+        # sort properties, prioritizing exclusions
+        properties = sorted(self.module.params.get('properties', list()),
+                            key=lambda k: ('exclude_if' not in k,
+                                           k.get('exclude_if', None)))
+        self.module.params['properties'] = properties
+
     def _validate_config(self):
         """Validate configuration."""
         try:
@@ -186,12 +192,13 @@ class VMWareInventory(object):
                     assert isinstance(value, list), '"%s" is not a list.' % param
         except AssertionError as ex:
             logging.error(ex)
-            sys.exit(255)
+            sys.exit(1)
 
         validated_config = dict(self.module.params)
         # redact password for debug
         validated_config['password'] = self.config_redacted
-        logging.debug('configuration validated: %s', validated_config)
+        logging.debug('configuration validated:\n%s',
+                      json.dumps(validated_config, indent=4))
 
     def _check_cache(self):
         """Check cache."""
@@ -270,14 +277,10 @@ class VMWareInventory(object):
     def _get_vm_properties(self, vm_obj):
         """Get vm properties."""
         vm_name = vm_obj.config.name.lower()
-        properties = sorted(self.module.params.get('properties', list()),
-                            key=lambda k: ('exclude_if' not in k,
-                                           k.get('exclude_if', None)))
-        # for prop in self.module.params.get('properties', list()):
         groups = dict()
         hostvars = dict()
         excluded = False
-        for prop in properties:
+        for prop in self.module.params.get('properties', list()):
             if isinstance(prop, str):
                 prop = {'name': prop}
             parts = prop['name'].split('.')
@@ -391,23 +394,26 @@ def main():
     log_file, log_level = (None, logging.INFO)
     if '--debug' in sys.argv:
         log_level = logging.DEBUG
+    if '--log' in sys.argv:
+        log_file = __log__
 
     log_format = '%(levelname)s: %(message)s'
     logging.basicConfig(filename=log_file, level=log_level, format=log_format)
-    logging.debug('running %s', __file__)
+
+    logging.debug('%s %s v%s %s', '/' * 5, __title__, __version__, '\\' * 5)
 
     missing_requirements = False
     for req in [r for r in REQUIRED_MODULES if not REQUIRED_MODULES[r]]:
         logging.critical('missing required module: %s', req)
         missing_requirements = True
     if missing_requirements:
-        sys.exit(255)
+        sys.exit(1)
 
     refresh = False
     if '--refresh-cache' in sys.argv:
         logging.debug('forcing refresh of cache')
         refresh = True
-    with VMWareInventory(refresh) as vminv:
+    with VMWareInventory(__config__, refresh) as vminv:
         if '--list' in sys.argv:
             logging.debug('display list')
             print(json.dumps(vminv.inventory(), indent=4))

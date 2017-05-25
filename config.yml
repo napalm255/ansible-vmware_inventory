@@ -30,22 +30,27 @@
 #   * default: None
 #   * desc: cluster(s) to query
 #   * env: VMWARE_CLUSTERS="Cluster1,Cluster2,Cluster3"
-# cache: bool
+# caching: bool
 #   * required: false
 #   * default: false
 #   * desc: enable inventory caching
-#   * env: VMWARE_CACHE=true
-# cache_time: int
+#   * env: VMWARE_CACHING=true
+# cache_max_age: int
 #   * required: false
 #   * default: 300
 #   * desc: length of time in seconds to keep the cache. default is 300s or 5m.
-#   * env: VMWARE_CACHE_TIME=3600
+#   * env: VMWARE_CACHE_MAX_AGE=3600
+# cache_file: str
+#   * required: false
+#   * default: .vminv.json
+#   * desc: filename of the cache
+#   * env: VMWARE_CACHE_FILE=myinv.json
 # cache_path: str
 #   * required: false
-#   * default: {script_dir}/.vminv.json
-#   * desc: path and filename to store cache. defaults to the same directory
-#           as the script.
-#   * env: VMWARE_CACHE_FILE=/tmp/vminv.json
+#   * default: {script_dir}
+#   * desc: path to store cache. defaults to the same directory as the script.
+#           no trailing slash.
+#   * env: VMWARE_CACHE_PATH=/tmp
 # gather_vm_facts: bool
 #   * required: false
 #   * default: false
