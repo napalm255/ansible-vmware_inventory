@@ -1,5 +1,4 @@
 ---
-dist: trusty
 matrix:
   include:
     - env: TOXENV=py35
