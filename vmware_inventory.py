@@ -277,8 +277,6 @@ class VMWareInventory(object):
     def _get_vm_properties(self, vm_obj):
         """Get vm properties."""
         vm_name = vm_obj.config.name.lower()
-        groups = dict()
-        hostvars = dict()
         excluded = False
         for prop in self.module.params.get('properties', list()):
             if isinstance(prop, str):
@@ -292,34 +290,29 @@ class VMWareInventory(object):
             if isinstance(exclude, str):
                 if exclude.lower() == vm_prop.lower():
                     excluded = True
-                    break
             elif exclude == vm_prop:
                 excluded = True
-                break
+            if excluded:
+                logging.debug('excluded by property value: %s', vm_name)
+                return False
             # group properties
             if prop.get('group'):
                 group_name = vm_prop
                 if prop.get('group_alias'):
                     group_name = prop.get('group_alias')
                 # when property is boolean only group when true
+                group_name = group_name.lower()
+                self.inv.setdefault(group_name, list())
                 if isinstance(vm_prop, bool) and vm_prop:
-                    groups.setdefault(group_name, list())
-                    groups[group_name].append(vm_obj.config.name.lower())
+                    self.inv[group_name].append(vm_obj.config.name.lower())
                 elif not isinstance(vm_prop, bool):
-                    group_name = group_name.lower()
-                    groups.setdefault(group_name, list())
-                    groups[group_name].append(vm_obj.config.name.lower())
+                    self.inv[group_name].append(vm_obj.config.name.lower())
             prop_key = parts[-1].lower()
             if isinstance(vm_prop, str):
                 vm_prop = vm_prop.lower()
-            hostvars.setdefault(vm_name, dict())
-            hostvars[vm_name].update({prop_key: vm_prop})
+            self.inv['_meta']['hostvars'].setdefault(vm_name, dict())
+            self.inv['_meta']['hostvars'][vm_name].update({prop_key: vm_prop})
             logging.debug('vm property: %s', {parts[-1]: vm_prop})
-        if excluded:
-            logging.debug('excluded by property value: %s', vm_name)
-            return False
-        self.inv.update(groups)
-        self.inv['_meta']['hostvars'].update(hostvars)
         return True
 
     def _get_customvalues(self, obj):
