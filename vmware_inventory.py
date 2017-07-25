@@ -145,7 +145,7 @@ class VMWareInventory(object):
                 try:
                     self.module.params.update(yaml.load(yaml_file))
                 except yaml.parser.ParserError as ex:
-                    logging.debug('invalid syntax in config.yml\n%s', ex)
+                    logging.debug('invalid syntax in %s\n%s', __config__, ex)
 
         # loop through environment variables starting with prefix
         for key, value in iteritems(os.environ):

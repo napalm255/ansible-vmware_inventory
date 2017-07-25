@@ -1,7 +1,7 @@
 ---
 # ansible vmware inventory configuration
 #
-# 'config.yml' and environment variables can be used as configuration.
+# 'vmware_inventory.yml' and environment variables can be used as configuration.
 # They can be used separately or together. environment variables will always
 # take precedence.
 #
