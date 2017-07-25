@@ -32,9 +32,11 @@ except ImportError:
 __title__ = 'Ansible VMWare Inventory'
 __author__ = 'Brad Gibson'
 __email__ = 'napalm255@gmail.com'
-__version__ = '0.2.0'
-__config__ = 'config.yml'
-__log__ = os.path.splitext(__file__)[0] + '.log'
+__version__ = '0.3.0'
+__script__ = os.path.basename(__file__)
+__path__ = os.path.dirname(os.path.realpath(__file__))
+__config__ = '%s/%s' % (__path__, os.path.splitext(__script__)[0] + '.yml')
+__log__ = '%s/%s' % (__path__, os.path.splitext(__script__)[0] + '.log')
 
 
 # pylint: disable=too-few-public-methods, too-many-instance-attributes
@@ -43,7 +45,7 @@ class VMWareInventory(object):
 
     def __init__(self, config, refresh=False):
         """Init."""
-        self.path = os.path.dirname(os.path.realpath(__file__))
+        self.path = __path__
         # initialize module parameters
         self.module = lambda: None
         setattr(self.module, 'params', dict())
@@ -61,7 +63,8 @@ class VMWareInventory(object):
                                    'custom_values_groupby_keyval': True,
                                    'custom_values_groupby_val': list(),
                                    'custom_values_filters': None,
-                                   'properties': None})
+                                   'properties': [{'name': 'config.guestId',
+                                                   'group': True}]})
 
         # initialize inventory
         self.inv = dict()
