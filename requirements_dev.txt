@@ -2,7 +2,7 @@
 tox==3.13.1
 yamllint==1.16.0
 pytest==5.0.0
-pytest-benchmark==3.0.0
+pytest-benchmark==3.2.2
 
 # Python 2.6 Support
 astroid==1.2.1; python_version < '2.7' # pyup: <=1.2.1
