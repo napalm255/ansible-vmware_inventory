@@ -1,6 +1,6 @@
 -rrequirements.txt
 tox==4.11.0
-yamllint==1.7.0
+yamllint==1.32.0
 pytest==3.0.7
 pytest-benchmark==3.0.0
 
